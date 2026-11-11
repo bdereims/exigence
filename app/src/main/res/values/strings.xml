@@ -1,5 +1,17 @@
 <resources>
     <string name="app_name">exigence</string>
+    <string name="menu_maintenance">Maintenance</string>
+    <string name="menu_engine">Engine</string>
+    <string name="menu_settings">Settings</string>
+    <string name="back">Back</string>
+    <string name="front_tires">Front tires</string>
+    <string name="rear_tires">Rear tires</string>
+    <string name="front_pressure_range">Front min: %1$.2f bar   max: %2$.2f bar</string>
+    <string name="rear_pressure_range">Rear min: %1$.2f bar   max: %2$.2f bar</string>
+    <string name="pressure_settings">Pressure (bar)</string>
+    <string name="temperature_settings">Temperature (°C)</string>
+    <string name="front_temperature_range">Front min: %1$.0f °C   max: %2$.0f °C</string>
+    <string name="rear_temperature_range">Rear min: %1$.0f °C   max: %2$.0f °C</string>
     <string name="tire_front_left">Front Left</string>
     <string name="tire_front_right">Front Right</string>
     <string name="tire_rear_left">Rear Left</string>

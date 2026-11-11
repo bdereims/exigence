@@ -29,22 +29,15 @@ class TirePanelView @JvmOverloads constructor(
     private val drawingBounds = RectF()
     private val panelColor = Color.rgb(17, 23, 31)
     private val trackColor = Color.rgb(42, 55, 69)
-    private val lowPressureThresholdBar = 1.7f
-    private val highPressureThresholdBar = 2.1f
+    private var lowPressureThresholdBar = 1.7f
+    private var highPressureThresholdBar = 2.1f
     private var pressureColor = Color.WHITE
-    private val temperatureStopsCelsius = floatArrayOf(0f, 40f, 60f, 110f)
     private val temperatureColors = intArrayOf(
         Color.rgb(0, 0, 139), Color.GREEN, Color.GREEN, Color.RED
     )
-    private val temperatureGradient = LinearGradient(
-        temperatureStopsCelsius.first(), 0f, temperatureStopsCelsius.last(), 0f,
-        temperatureColors,
-        FloatArray(temperatureStopsCelsius.size) { stopIndex ->
-            (temperatureStopsCelsius[stopIndex] - temperatureStopsCelsius.first()) /
-                (temperatureStopsCelsius.last() - temperatureStopsCelsius.first())
-        },
-        Shader.TileMode.CLAMP
-    )
+    private var temperatureLowColorThresholdCelsius = 40f
+    private var temperatureHighColorThresholdCelsius = 60f
+    private var temperatureGradient = createTemperatureGradient(40f, 60f)
     private val temperatureGradientMatrix = Matrix()
     private var temperatureColor = Color.GREEN
     private val primaryTextColor = Color.rgb(245, 247, 250)
@@ -52,7 +45,7 @@ class TirePanelView @JvmOverloads constructor(
     private var tireLabel = ""
     private var reading = TireReading()
     private var pressureRange = GaugeRange(0f, 3f)
-    private var temperatureRange = GaugeRange(0f, 110f)
+    private val temperatureScale = GaugeRange(0f, 110f)
     private var pressureText = ""
     private var pressureDisplayText = ""
     private var temperatureText = ""
@@ -66,12 +59,38 @@ class TirePanelView @JvmOverloads constructor(
         isFocusable = true
     }
 
-    fun bind(label: String, tireReading: TireReading, state: TireDashboardState) {
+    fun bind(
+        position: TirePosition,
+        label: String,
+        tireReading: TireReading,
+        state: TireDashboardState
+    ) {
         tireLabel = label
         reading = tireReading
         pressureRange = state.pressureRange
-        temperatureRange = state.temperatureRange
-        pressureColor = colorForPressure(reading.pressureBar)
+        val isFrontTire = position == TirePosition.FRONT_LEFT || position == TirePosition.FRONT_RIGHT
+        val temperatureColorRange = if (isFrontTire) {
+            state.frontTemperatureColorRange
+        } else {
+            state.rearTemperatureColorRange
+        }
+        temperatureLowColorThresholdCelsius = temperatureColorRange.minimum
+        temperatureHighColorThresholdCelsius = temperatureColorRange.maximum
+        temperatureGradient = createTemperatureGradient(
+            temperatureLowColorThresholdCelsius,
+            temperatureHighColorThresholdCelsius
+        )
+        lowPressureThresholdBar = if (isFrontTire) {
+            state.frontLowPressureThresholdBar
+        } else {
+            state.rearLowPressureThresholdBar
+        }
+        highPressureThresholdBar = if (isFrontTire) {
+            state.frontHighPressureThresholdBar
+        } else {
+            state.rearHighPressureThresholdBar
+        }
+        pressureColor = colorForPressure(reading.pressureBar, reading.temperatureCelsius)
         temperatureColor = colorForTemperature(reading.temperatureCelsius)
         pressureText = formatReading(reading.pressureBar, 1)
         pressureDisplayText = context.getString(R.string.pressure_value, pressureText)
@@ -83,11 +102,11 @@ class TirePanelView @JvmOverloads constructor(
         maximumPressureText = formatScaleValue(pressureRange.maximum)
         minimumTemperatureText = context.getString(
             R.string.temperature_value,
-            formatScaleValue(temperatureRange.minimum)
+            formatScaleValue(temperatureScale.minimum)
         )
         maximumTemperatureText = context.getString(
             R.string.temperature_value,
-            formatScaleValue(temperatureRange.maximum)
+            formatScaleValue(temperatureScale.maximum)
         )
         contentDescription = context.getString(
             R.string.tire_panel_description,
@@ -178,14 +197,14 @@ class TirePanelView @JvmOverloads constructor(
         gaugePaint.strokeWidth = 5f * unit
         gaugePaint.color = trackColor
         canvas.drawLine(trackStart, trackVertical, trackEnd, trackVertical, gaugePaint)
-        val temperatureFraction = temperatureRange.fraction(reading.temperatureCelsius)
+        val temperatureFraction = temperatureScale.fraction(reading.temperatureCelsius)
         val temperatureCelsius = reading.temperatureCelsius
         if (temperatureCelsius != null && temperatureCelsius.isFinite()) {
             val pixelsPerDegree = (trackEnd - trackStart) /
-                (temperatureRange.maximum - temperatureRange.minimum)
+                (temperatureScale.maximum - temperatureScale.minimum)
             temperatureGradientMatrix.setScale(pixelsPerDegree, 1f)
             temperatureGradientMatrix.postTranslate(
-                trackStart - temperatureRange.minimum * pixelsPerDegree, 0f
+                trackStart - temperatureScale.minimum * pixelsPerDegree, 0f
             )
             temperatureGradient.setLocalMatrix(temperatureGradientMatrix)
             gaugePaint.shader = temperatureGradient
@@ -210,28 +229,54 @@ class TirePanelView @JvmOverloads constructor(
         )
     }
 
-    private fun colorForPressure(pressureBar: Float?): Int {
+    private fun colorForPressure(pressureBar: Float?, temperatureCelsius: Float?): Int {
         return when {
             pressureBar == null || !pressureBar.isFinite() -> secondaryTextColor
             pressureBar < lowPressureThresholdBar -> Color.rgb(100, 181, 246)
             pressureBar > highPressureThresholdBar -> Color.RED
+            temperatureCelsius != null &&
+                temperatureCelsius.isFinite() &&
+                temperatureCelsius in temperatureLowColorThresholdCelsius..temperatureHighColorThresholdCelsius ->
+                Color.GREEN
             else -> Color.WHITE
         }
     }
 
+    private fun createTemperatureGradient(lowThreshold: Float, highThreshold: Float): LinearGradient {
+        val lowPosition = (lowThreshold / 110f).coerceIn(0.0001f, 0.9998f)
+        val highPosition = (highThreshold / 110f).coerceIn(lowPosition + 0.0001f, 0.9999f)
+        val positions = floatArrayOf(0f, lowPosition, highPosition, 1f)
+        return LinearGradient(
+            0f, 0f, 110f, 0f,
+            temperatureColors,
+            positions,
+            Shader.TileMode.CLAMP
+        )
+    }
+
     private fun colorForTemperature(temperatureCelsius: Float?): Int {
         if (temperatureCelsius == null || !temperatureCelsius.isFinite()) return secondaryTextColor
-        if (temperatureCelsius <= temperatureStopsCelsius.first()) return temperatureColors.first()
-        for (stopIndex in 1 until temperatureStopsCelsius.size) {
-            if (temperatureCelsius <= temperatureStopsCelsius[stopIndex]) {
-                val fraction = (temperatureCelsius - temperatureStopsCelsius[stopIndex - 1]) /
-                    (temperatureStopsCelsius[stopIndex] - temperatureStopsCelsius[stopIndex - 1])
-                return ColorUtils.blendARGB(
-                    temperatureColors[stopIndex - 1], temperatureColors[stopIndex], fraction
-                )
+        val temperature = temperatureCelsius.coerceIn(0f, 110f)
+        return when {
+            temperature < temperatureLowColorThresholdCelsius -> {
+                val fraction = if (temperatureLowColorThresholdCelsius == 0f) {
+                    1f
+                } else {
+                    temperature / temperatureLowColorThresholdCelsius
+                }
+                ColorUtils.blendARGB(temperatureColors.first(), Color.GREEN, fraction)
+            }
+            temperature <= temperatureHighColorThresholdCelsius -> Color.GREEN
+            else -> {
+                val fraction = if (temperatureHighColorThresholdCelsius == 110f) {
+                    0f
+                } else {
+                    (temperature - temperatureHighColorThresholdCelsius) /
+                        (110f - temperatureHighColorThresholdCelsius)
+                }
+                ColorUtils.blendARGB(Color.GREEN, temperatureColors.last(), fraction)
             }
         }
-        return temperatureColors.last()
     }
 
     private fun drawText(

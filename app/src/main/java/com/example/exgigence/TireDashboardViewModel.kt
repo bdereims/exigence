@@ -33,7 +33,12 @@ data class GaugeRange(val minimum: Float, val maximum: Float) {
 data class TireDashboardState(
     val readings: Map<TirePosition, TireReading> = TirePosition.entries.associateWith { TireReading() },
     val pressureRange: GaugeRange = GaugeRange(minimum = 0f, maximum = 3f),
-    val temperatureRange: GaugeRange = GaugeRange(minimum = 0f, maximum = 110f)
+    val frontTemperatureColorRange: GaugeRange = GaugeRange(minimum = 0f, maximum = 110f),
+    val rearTemperatureColorRange: GaugeRange = GaugeRange(minimum = 0f, maximum = 110f),
+    val frontLowPressureThresholdBar: Float = 1.75f,
+    val frontHighPressureThresholdBar: Float = 2.25f,
+    val rearLowPressureThresholdBar: Float = 1.75f,
+    val rearHighPressureThresholdBar: Float = 2.25f
 )
 
 class TireDashboardViewModel : ViewModel() {
@@ -60,10 +65,32 @@ class TireDashboardViewModel : ViewModel() {
         )
     }
 
-    fun updateRanges(pressureRange: GaugeRange, temperatureRange: GaugeRange) {
+    fun updatePressureRange(pressureRange: GaugeRange) {
+        mutableState.value = checkNotNull(mutableState.value).copy(pressureRange = pressureRange)
+    }
+
+    fun updateTemperatureColorRanges(frontMin: Float, frontMax: Float, rearMin: Float, rearMax: Float) {
+        require(frontMin.isFinite() && frontMax.isFinite() && frontMax > frontMin)
+        require(rearMin.isFinite() && rearMax.isFinite() && rearMax > rearMin)
         mutableState.value = checkNotNull(mutableState.value).copy(
-            pressureRange = pressureRange,
-            temperatureRange = temperatureRange
+            frontTemperatureColorRange = GaugeRange(frontMin, frontMax),
+            rearTemperatureColorRange = GaugeRange(rearMin, rearMax)
+        )
+    }
+
+    fun updatePressureThresholds(
+        frontLow: Float,
+        frontHigh: Float,
+        rearLow: Float,
+        rearHigh: Float
+    ) {
+        require(frontLow.isFinite() && frontHigh.isFinite() && frontLow < frontHigh)
+        require(rearLow.isFinite() && rearHigh.isFinite() && rearLow < rearHigh)
+        mutableState.value = checkNotNull(mutableState.value).copy(
+            frontLowPressureThresholdBar = frontLow,
+            frontHighPressureThresholdBar = frontHigh,
+            rearLowPressureThresholdBar = rearLow,
+            rearHighPressureThresholdBar = rearHigh
         )
     }
 }
