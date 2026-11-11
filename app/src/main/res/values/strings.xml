@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">exigence</string>
+    <string name="tire_front_left">Front Left</string>
+    <string name="tire_front_right">Front Right</string>
+    <string name="tire_rear_left">Rear Left</string>
+    <string name="tire_rear_right">Rear Right</string>
+    <string name="pressure_value">%1$s bar</string>
+    <string name="temperature_label">TEMPERATURE</string>
+    <string name="temperature_value">%1$s °C</string>
+    <string name="reading_unavailable">—</string>
+    <string name="tire_panel_description">%1$s. Pressure: %2$s bar, scale %3$s to %4$s bar. Temperature: %5$s, scale %6$s to %7$s.</string>
+</resources>
